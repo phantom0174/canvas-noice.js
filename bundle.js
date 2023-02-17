@@ -7,7 +7,7 @@ const { canvas, ctx, Point, Grid, X_CHUNK, Y_CHUNK } = require('./objs.js');
 
 const grid = new Grid(canvas.width, canvas.height);
 
-const point_count = 50;
+const point_count = 1000;
 for (let i = 0; i < point_count; i++) {
     grid.insert_point(new Point());
 }
@@ -18,9 +18,14 @@ function cal_gravity_in_cur_chunk(chunk) {
 
         for (let j = i + 1; j < chunk.points.length; j++) {
             const tar_p = chunk.points[j];
+            
+            if (p.lazy.sleep_frame > 0) {
+                p.lazy.sleep_frame--;
+            } else p.cal_inter_with_point(tar_p, true);
 
-            p.cal_inter_with_point(tar_p, true);
-            tar_p.cal_inter_with_point(p, false);
+            if (tar_p.lazy.sleep_frame > 0) {
+                tar_p.lazy.sleep_frame--;
+            } else tar_p.cal_inter_with_point(p, false);
         }
     }
 }
@@ -152,7 +157,7 @@ function tick() {
             const refill_count = Math.floor(grid.wait_refill_num / (10 - Math.min(stable / 5, 8)));
             console.log('refill:', refill_count)
             for (let i = 0; i < refill_count; i++) {
-                setTimeout(grid.insert_point(new Point()), Math.random() * 700);
+                setTimeout(grid.insert_point(new Point()), Math.random() * 2000);
             }
             grid.wait_refill_num -= refill_count;
             stable++;
