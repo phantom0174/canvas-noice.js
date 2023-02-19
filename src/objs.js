@@ -13,20 +13,23 @@ export class Point {
             near: 0,
             sleep_frame: 0
         }
+
+        this.pointer_inter = false;
     }
 
     evolve() {
         this.x += this.vx;
         this.y += this.vy;
 
-        if (CONFIG.RANDOMNESS_ACTIVE) {
+        if (CONFIG.RANDOMNESS_ACTIVE && !this.pointer_inter) {
             this.vx += (Math.random() * 2 - 1) / 10;
             this.vy += (Math.random() * 2 - 1) / 10;
         }
 
         if (Math.abs(this.vx) > CONFIG.particle_max_speed) this.vx *= CONFIG.particle_slow_down_rate;
         if (Math.abs(this.vy) > CONFIG.particle_max_speed) this.vy *= CONFIG.particle_slow_down_rate;
-
+        
+        if (this.pointer_inter) this.pointer_inter = false;
         if (this.lazy.sleep_frame > 0) return;
 
         this.lazy.sleep_frame = Math.round(60 * CONFIG.tabu_index * Math.max(
@@ -34,15 +37,52 @@ export class Point {
             0
         ));
         this.lazy.touched = 0, this.lazy.near = 0;
+
     }
 
-    cal_inter_with_point(p, need_draw, ctx) {
+    draw_to_point(tar_p, ctx, alpha) {
+        ctx.lineWidth = 2 * Number(alpha);
+        ctx.strokeStyle = `rgba(${CONFIG.line_color},${alpha})`;
+        ctx.beginPath();
+        ctx.moveTo(this.x, this.y);
+        ctx.lineTo(tar_p.x, tar_p.y);
+        ctx.stroke();
+    }
+
+    cal_alpha(distance) {
+        return Math.min(1.2 - distance / CONFIG.max_d, 1).toFixed(1);
+    }
+
+    cal_inter_with_pointer(pt, ctx) {
+        CONFIG.ops++;
+        const dx = pt.x - this.x, dy = pt.y - this.y;
+        const d = Math.hypot(dx, dy);
+
+        if (d > CONFIG.max_d || d < 1) return;
+        this.pointer_inter = true;
+
+        //: interaction calculation
+
+        // this.vx = 0, this.vy = 0;
+        const direction = (d <= CONFIG.max_d / 1.5) ? -1 : 5;
+        const force = Math.pow(d, -1) * CONFIG.gravity_constant * direction;
+        const dv = {
+            x: Math.sign(dx) * force,
+            y: Math.sign(dy) * force
+        };
+        this.vx += dv.x, this.vy += dv.y;
+
+        this.draw_to_point(pt, ctx, this.cal_alpha(d));
+    }
+
+    cal_inter_with_point(p, need_draw, ctx = undefined) {
+        CONFIG.ops++;
         const dx = p.x - this.x, dy = p.y - this.y;
         const d = Math.hypot(dx, dy);
 
-        if (d > CONFIG.max_d || d < 0.01) return;
+        if (d > CONFIG.max_d || d < 1) return;
 
-        if (!p?.is_pointer && this.lazy.sleep_frame === 0) {
+        if (!this.lazy.sleep_frame) {
             this.lazy.touched++;
             if (d <= CONFIG.max_d / 3) this.lazy.near++;
 
@@ -56,29 +96,12 @@ export class Point {
                 };
                 this.vx += dv.x, this.vy += dv.y;
             }
-        } else if (!p?.is_pointer && this.lazy.sleep_frame > 0) {
+        } else {
             this.lazy.sleep_frame--;
-        } else if (p?.is_pointer) {
-            this.vx = 0, this.vy = 0;
-            // const direction = (d <= CONFIG.max_d / 1.5) ? -1 : 1;
-            // const force = Math.pow(d, 0) * CONFIG.gravity_constant * direction;
-            // const dv = {
-            //     x: Math.sign(dx) * force,
-            //     y: Math.sign(dy) * force
-            // };
-            // this.vx += dv.x, this.vy += dv.y;
         }
 
         if (!need_draw) return;
-
-        // draw line
-        const c = Math.floor(d * (255 / CONFIG.max_d));
-        // const alpha = (d / CONFIG.max_d).toFixed(1);
-        ctx.strokeStyle = `rgba(${c}, ${c}, ${c})`; //TODO: rgba
-        ctx.beginPath();
-        ctx.moveTo(this.x, this.y);
-        ctx.lineTo(p.x, p.y);
-        ctx.stroke();
+        this.draw_to_point(p, ctx, this.cal_alpha(d));
     }
 }
 
@@ -121,25 +144,25 @@ export class Grid {
         }
     }
 
-    draw_chunks() {
-        const c_canvas = document.getElementById("chunks");
-        const c_ctx = c_canvas.getContext("2d");
+    // draw_chunks() {
+    //     const c_canvas = document.getElementById("chunks");
+    //     const c_ctx = c_canvas.getContext("2d");
 
-        c_canvas.width = this.w;
-        c_canvas.height = this.h;
+    //     c_canvas.width = this.w;
+    //     c_canvas.height = this.h;
 
-        c_ctx.beginPath();
-        for (let i = 0; i < CONFIG.X_CHUNK; i++) {
-            c_ctx.moveTo(this.chunk_w * i, 0);
-            c_ctx.lineTo(this.chunk_w * i, this.h);
-        }
+    //     c_ctx.beginPath();
+    //     for (let i = 0; i < CONFIG.X_CHUNK; i++) {
+    //         c_ctx.moveTo(this.chunk_w * i, 0);
+    //         c_ctx.lineTo(this.chunk_w * i, this.h);
+    //     }
 
-        for (let j = 0; j < CONFIG.Y_CHUNK; j++) {
-            c_ctx.moveTo(0, this.chunk_h * j);
-            c_ctx.lineTo(this.w, this.chunk_h * j);
-        }
-        c_ctx.stroke();
-    }
+    //     for (let j = 0; j < CONFIG.Y_CHUNK; j++) {
+    //         c_ctx.moveTo(0, this.chunk_h * j);
+    //         c_ctx.lineTo(this.w, this.chunk_h * j);
+    //     }
+    //     c_ctx.stroke();
+    // }
 
     insert_point(point) {
         const chunk_x_num = Math.floor(point.x / this.chunk_w);
@@ -154,16 +177,23 @@ export class Grid {
     }
 
     random_remove_points(num) {
+        const batch_num = Math.max(Math.floor(num / 10), 1);
         while (num > 0) {
-            const random_chunk_x = Math.floor(Math.random() * CONFIG.X_CHUNK);
-            const random_chunk_y = Math.floor(Math.random() * CONFIG.Y_CHUNK);
+            const ci = Math.floor(Math.random() * CONFIG.X_CHUNK);
+            for (let cj = 0; cj < CONFIG.Y_CHUNK; cj++) {
+                const chunk = this.chunks[ci][cj];
 
-            const chunk = this.chunks[random_chunk_x][random_chunk_y];
-            const remove_num = Math.max(Math.floor((num / 10) * Math.random()), 2);
-            // console.log('rmv:', remove_num);
+                let removed_num;
+                if (chunk.points.length > batch_num) {
+                    for (let i = 0; i < batch_num; i++) chunk.points.pop();
+                    removed_num = batch_num;
+                } else {
+                    removed_num = chunk.points.length;
+                    chunk.points = [];
+                }
 
-            for (let i = 0; i < remove_num; i++) chunk.points.pop();
-            num -= remove_num;
+                num -= removed_num;
+            }
         }
     }
 

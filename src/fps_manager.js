@@ -6,35 +6,43 @@ export class FPSManager {
         this.grid = grid;
 
         this.fps_el = document.getElementById("fps");
-        this.startTime = Date.now();
+        this.startTime = undefined;
         this.frame = 0;
 
         this.avr_fps = 0;
         this.avr_counter = 3;
 
         this.stable_counter = 0;
+    }
 
+    async initialize() {
+        await new Promise(r => setTimeout(r, 500));
+
+        this.startTime = Date.now();
         this.tick();
+
+        await new Promise(r => setTimeout(r, 1000));
     }
 
     tick() {
         this.frame++;
 
-        let time = Date.now();
-        if (time - this.startTime >= 1000) {
+        const time = Date.now();
+        const period = this.avr_counter ? 300 : 1000;
+        if (time - this.startTime >= period) {
             const cur_fps = (this.frame / ((time - this.startTime) / 1000)).toFixed(1); //str
-            if (this.avr_counter > 0) {
+            if (this.avr_counter) {
                 this.avr_counter--;
                 this.avr_fps += Number(cur_fps);
 
-                if (this.avr_counter === 0) {
+                if (!this.avr_counter) {
                     this.avr_fps = Math.round(this.avr_fps / 3);
                     console.log('avg fps:', this.avr_fps);
                 }
             } else {
                 this.object_optimization(Number(cur_fps));
             }
-
+            
             this.fps_el.innerHTML = cur_fps;
             this.startTime = time;
             this.frame = 0;

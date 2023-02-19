@@ -32,25 +32,32 @@ export class CanvasNoice {
         };
 
         this.pendingRender();
+        this.ignore_initial_size_changes = true;
     }
 
     bindEvent() {
         bind(this.el, () => {
+            if (this.ignore_initial_size_changes) {
+                this.ignore_initial_size_changes = false;
+                return;
+            }
+            cancelAnimationFrame(this.tid);
+
             this.canvas.width = this.el.clientWidth;
             this.canvas.height = this.el.clientHeight;
 
             this.render_info.last_changed_time = Date.now();
             this.render_info.draw = false;
-            // this.ctx.clearRect(-8, -8, this.grid.w + 8, this.grid.h + 8);
             this.render_info.need_initialize = true;
             
-            console.log('reset');
+            this.ctx.clearRect(-8, -8, this.grid.w + 8, this.grid.h + 8);
+            console.log('Canvas cleared!');
         });
 
         this.onmousemove = window.onmousemove;
         window.onmousemove = e => {
-            this.pointer.x = e.clientX - this.el.offsetLeft + document.scrollingElement.scrollLeft; // 当存在横向滚动条时，x坐标再往右移动滚动条拉动的距离
-            this.pointer.y = e.clientY - this.el.offsetTop + document.scrollingElement.scrollTop; // 当存在纵向滚动条时，y坐标再往下移动滚动条拉动的距离
+            this.pointer.x = e.clientX - this.el.offsetLeft + document.scrollingElement.scrollLeft - 8; // 当存在横向滚动条时，x坐标再往右移动滚动条拉动的距离
+            this.pointer.y = e.clientY - this.el.offsetTop + document.scrollingElement.scrollTop - 8; // 当存在纵向滚动条时，y坐标再往下移动滚动条拉动的距离
             this.onmousemove && this.onmousemove(e);
         };
 
@@ -60,6 +67,19 @@ export class CanvasNoice {
             this.pointer.y = null;
             this.onmouseout && this.onmouseout();
         };
+
+        window.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const touch = e.changedTouches[0];
+            this.pointer.x = touch.clientX - this.el.offsetLeft + document.scrollingElement.scrollLeft - 8; // 当存在横向滚动条时，x坐标再往右移动滚动条拉动的距离
+            this.pointer.y = touch.clientY - this.el.offsetTop + document.scrollingElement.scrollTop - 8; // 当存在纵向滚动条时，y坐标再往下移动滚动条拉动的距离
+        });
+        
+        window.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            this.pointer.x = null;
+            this.pointer.y = null;
+        });
     }
 
     newCanvas() {
@@ -78,7 +98,7 @@ export class CanvasNoice {
         return canvas;
     }
 
-    async optimize_chunk_size() {
+    optimize_chunk_size() {
         const optimized_size_threshold = CONFIG.max_d * Math.max(CONFIG.chunk_size_optimize_constant, 0.25);
 
         const calculate_optimization = (dimension) => {
@@ -105,20 +125,22 @@ export class CanvasNoice {
     async pendingRender() {
         if (this.render_info.draw) {
             if (this.render_info.need_initialize) {
-                await this.optimize_chunk_size();
+                this.optimize_chunk_size();
 
                 this.grid = new Grid(this.canvas.width, this.canvas.height);
                 this.fps_manager = new FPSManager(this.grid);
+                await this.fps_manager.initialize();
+
                 this.simulator = new Simulator(this.ctx, this.grid, this.fps_manager, this.pointer);
 
                 this.render_info.need_initialize = false;
-                console.log('iniald!');
+                console.log('Canvas Initialized!');
             }
             this.requestFrame();
         } else if (Date.now() - this.render_info.last_changed_time > 1000) {
             this.render_info.draw = true;
-            this.requestFrame();
-        } else {
+            this.pendingRender();
+        } else { // wait until ready
             setTimeout(() => {
                 this.pendingRender();
             }, this.render_info.delay_after * 1000);

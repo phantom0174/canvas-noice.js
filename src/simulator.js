@@ -5,6 +5,8 @@ import { Point } from './objs';
 export class Simulator {
     constructor(ctx, grid, fps_manager, pointer) {
         this.ctx = ctx;
+        this.ctx.fillStyle = `rgb(${CONFIG.point_color})`;
+
         this.grid = grid;
         this.fps_manager = fps_manager;
         this.pointer = pointer;
@@ -22,7 +24,11 @@ export class Simulator {
             if (ci >= 0 && ci < CONFIG.X_CHUNK) tasks.push(this.calVerticalInteraction(ci));
             if (ci - 2 >= 0 && ci - 2 < CONFIG.X_CHUNK) tasks.push(this.evolveVerticalChunks(ci - 2));
             if (ci - 4 >= 0 && ci - 4 < CONFIG.X_CHUNK) tasks.push(this.updateChunk(ci - 4));
-            if (tasks.length === 0) break;
+            if (tasks.length === 0) {
+                // if (Math.random() < 0.1) console.log(CONFIG.ops);
+                CONFIG.ops = 0;
+                break;
+            };
 
             await Promise.all(tasks);
         }
@@ -42,6 +48,8 @@ export class Simulator {
 
             // calculate interaction in surrounding chunk
             chunk.points.forEach(tar_p => {
+                if (this.pointer.x !== null) tar_p.cal_inter_with_pointer(this.pointer, this.ctx);
+
                 // compute chunks within interaction range
                 let chunk_left_x = 0, chunk_right_x = 0;
                 let chunk_left_y = 0, chunk_right_y = 0;
@@ -58,9 +66,6 @@ export class Simulator {
                         this.calSurroundingInteraction(grid.chunks[ci + i][cj + j], tar_p, chunk.divergence);
                     }
                 }
-
-                // compute interaction with pointer, x && y !== null
-                if (this.pointer.x !== null) tar_p.cal_inter_with_point(this.pointer, true, this.ctx);
             });
         }
     }
@@ -73,7 +78,7 @@ export class Simulator {
                 const tar_p = chunk.points[j];
 
                 p.cal_inter_with_point(tar_p, true, this.ctx);
-                tar_p.cal_inter_with_point(p, false, this.ctx);
+                tar_p.cal_inter_with_point(p, false);
             }
         }
     }
@@ -81,15 +86,16 @@ export class Simulator {
     calSurroundingInteraction(tar_chunk, local_p, local_div) {
         const need_draw = local_div || tar_chunk.divergence === local_div;
         tar_chunk.points.forEach(tar_p => {
-            local_p.cal_inter_with_point(tar_p, need_draw, this.ctx);
+            if (need_draw) local_p.cal_inter_with_point(tar_p, need_draw, this.ctx);
+            else local_p.cal_inter_with_point(tar_p, need_draw);
         });
     }
 
     async evolveVerticalChunks(ci) {
-        this.ctx.strokeStyle = `rgb(0, 0, 0)`;
         for (let cj = 0; cj < CONFIG.Y_CHUNK; cj++) {
             this.grid.chunks[ci][cj].points.forEach(p => {
-                this.ctx.fillRect(p.x, p.y, 2, 2);
+                CONFIG.ops++;
+                this.ctx.fillRect(p.x, p.y, 1, 1);
                 p.evolve();
             });
         }
@@ -107,6 +113,7 @@ export class Simulator {
 
             let rmv_list = [];
             for (let i = 0; i < chunk.points.length; i++) {
+                CONFIG.ops++;
                 const cur_p = chunk.points[i];
 
                 let chunk_dx = 0, chunk_dy = 0;
