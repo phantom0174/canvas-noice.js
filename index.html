@@ -5,18 +5,20 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>CanvasNoice</title>
 </head>
 
 <body>
-    <div style="position: relative; display: block;">
-        <canvas id="chunks" style="position: absolute; left: 0; top: 0; z-index: -2;"></canvas>
-        <canvas id="myCanvas" style="position: absolute; left: 0; top: 0; z-index: 0;"></canvas>
-    </div>
-    <br>
     <span id="fps">--</span> FPS
-
-    <script type="text/javascript" src="./bundle.js"></script>
+    <br>
+    <script defer type="text/javascript" src="./bundle.js"></script>
 </body>
 
 </html>
+
+<style>
+    html,
+    body {
+        height: 100%;
+    }
+</style>
