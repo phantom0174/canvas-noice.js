@@ -1,4 +1,5 @@
 import { Point } from './objs';
+import { CONFIG } from './config';
 
 
 export class FPSManager {
@@ -13,10 +14,11 @@ export class FPSManager {
         this.avr_counter = 3;
 
         this.stable_counter = 0;
+        this.batch = Math.round(CONFIG.X_CHUNK * CONFIG.Y_CHUNK / 30);
     }
 
     async initialize() {
-        await new Promise(r => setTimeout(r, 500));
+        await new Promise(r => setTimeout(r, 300));
 
         this.startTime = Date.now();
         this.tick();
@@ -37,7 +39,7 @@ export class FPSManager {
 
                 if (!this.avr_counter) {
                     this.avr_fps = Math.round(this.avr_fps / 3);
-                    console.log('avg fps:', this.avr_fps);
+                    console.log('Avr FPS:', this.avr_fps);
                 }
             } else {
                 this.object_optimization(Number(cur_fps));
@@ -51,10 +53,11 @@ export class FPSManager {
     }
 
     object_optimization(cur_fps) {
-        if (cur_fps > this.avr_fps * 0.9) {
-            this.grid.increase_capacity(Math.ceil((cur_fps - this.avr_fps * 0.9) / 6));
+        const performance = cur_fps / this.avr_fps;
+        if (performance > 0.9) {
+            this.grid.increase_capacity(Math.round((cur_fps - this.avr_fps * 0.9) / 6));
 
-            const refill_count = Math.floor(this.grid.wait_refill_num / (10 - Math.min(this.stable_counter / 5, 8)));
+            const refill_count = Math.round(this.grid.wait_refill_num / (10 - Math.min(this.stable_counter / 5, 8)));
             for (let i = 0; i < refill_count; i++) {
                 setTimeout(() => {
                     this.grid.insert_point(new Point(this.grid.w, this.grid.h));
@@ -66,17 +69,17 @@ export class FPSManager {
         } else {
             this.stable_counter = 0;
 
-            if (cur_fps <= this.avr_fps * 0.7) {
+            if (performance <= 0.7) {
                 this.grid.decrease_capacity(3);
-                this.grid.random_remove_points(this.grid.wait_refill_num);
+                this.grid.random_remove_points(this.batch * 3);
                 this.grid.wait_refill_num = 0;
-            } else if (cur_fps <= this.avr_fps * 0.8) {
+            } else if (performance <= 0.8) {
                 this.grid.decrease_capacity(2);
-                const remove_points_num = Math.floor(this.grid.wait_refill_num / 3);
-                this.grid.random_remove_points(remove_points_num);
-                this.grid.wait_refill_num -= remove_points_num;
-            } else if (cur_fps <= this.avr_fps * 0.9) {
+                this.grid.random_remove_points(this.batch * 2);
+                this.grid.wait_refill_num = Math.floor(this.grid.wait_refill_num / 3);
+            } else if (performance <= 0.9) {
                 this.grid.decrease_capacity(1);
+                this.grid.random_remove_points(this.batch);
             }
         }
     }

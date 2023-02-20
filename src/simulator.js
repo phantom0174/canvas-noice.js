@@ -6,6 +6,7 @@ export class Simulator {
     constructor(ctx, grid, fps_manager, pointer) {
         this.ctx = ctx;
         this.ctx.fillStyle = `rgb(${CONFIG.point_color})`;
+        ctx.strokeStyle = `rgb(${CONFIG.line_color})`;
 
         this.grid = grid;
         this.fps_manager = fps_manager;
@@ -15,6 +16,11 @@ export class Simulator {
         for (let i = 0; i < CONFIG.point_count; i++) {
             this.grid.insert_point(new Point(this.grid.w, this.grid.h));
         }
+
+        // index: 10 * opacity(0.2 ~ 1) - 2
+        // inverse: (index + 2) / 10
+        this.draw_buffer = new Array(9).fill(null).map(() => []);
+        this.d_info; // draw info variable buffer
     }
 
     async traverse() {
@@ -24,13 +30,31 @@ export class Simulator {
             if (ci >= 0 && ci < CONFIG.X_CHUNK) tasks.push(this.calVerticalInteraction(ci));
             if (ci - 2 >= 0 && ci - 2 < CONFIG.X_CHUNK) tasks.push(this.evolveVerticalChunks(ci - 2));
             if (ci - 4 >= 0 && ci - 4 < CONFIG.X_CHUNK) tasks.push(this.updateChunk(ci - 4));
-            if (tasks.length === 0) {
-                // if (Math.random() < 0.1) console.log(CONFIG.ops);
-                CONFIG.ops = 0;
-                break;
-            };
+            if (tasks.length === 0) break;
 
             await Promise.all(tasks);
+        }
+    }
+
+    loadDrawInfoIntoBuffer() {
+        if (!this.d_info) return;
+        this.draw_buffer[10 * this.d_info.a - 2].push(this.d_info.pos_info);
+    }
+
+    drawLinesInBuffer() {
+        this.draw_buffer.forEach((info, ind) => {
+            this.ctx.beginPath();
+
+            this.ctx.lineWidth = (ind + 2) / 10;
+            info.forEach(pos_info => {
+                this.ctx.moveTo(pos_info[0], pos_info[1]);
+                this.ctx.lineTo(pos_info[2], pos_info[3]);
+            });
+            this.ctx.stroke();
+        });
+
+        for (let i = 0; i < this.draw_buffer.length; i++) {
+            this.draw_buffer[i] = [];
         }
     }
 
@@ -48,7 +72,10 @@ export class Simulator {
 
             // calculate interaction in surrounding chunk
             chunk.points.forEach(tar_p => {
-                if (this.pointer.x !== null) tar_p.cal_inter_with_pointer(this.pointer, this.ctx);
+                if (this.pointer.x !== null) {
+                    this.d_info = tar_p.cal_inter_with_pointer(this.pointer);
+                    this.loadDrawInfoIntoBuffer();
+                }
 
                 // compute chunks within interaction range
                 let chunk_left_x = 0, chunk_right_x = 0;
@@ -68,6 +95,8 @@ export class Simulator {
                 }
             });
         }
+
+        this.drawLinesInBuffer();
     }
 
     calLocalInteraction(chunk) {
@@ -77,7 +106,9 @@ export class Simulator {
             for (let j = i + 1; j < chunk.points.length; j++) {
                 const tar_p = chunk.points[j];
 
-                p.cal_inter_with_point(tar_p, true, this.ctx);
+                this.d_info = p.cal_inter_with_point(tar_p, true);
+                this.loadDrawInfoIntoBuffer();
+
                 tar_p.cal_inter_with_point(p, false);
             }
         }
@@ -86,16 +117,15 @@ export class Simulator {
     calSurroundingInteraction(tar_chunk, local_p, local_div) {
         const need_draw = local_div || tar_chunk.divergence === local_div;
         tar_chunk.points.forEach(tar_p => {
-            if (need_draw) local_p.cal_inter_with_point(tar_p, need_draw, this.ctx);
-            else local_p.cal_inter_with_point(tar_p, need_draw);
+            this.d_info = local_p.cal_inter_with_point(tar_p, need_draw);
+            this.loadDrawInfoIntoBuffer();
         });
     }
 
     async evolveVerticalChunks(ci) {
         for (let cj = 0; cj < CONFIG.Y_CHUNK; cj++) {
             this.grid.chunks[ci][cj].points.forEach(p => {
-                CONFIG.ops++;
-                this.ctx.fillRect(p.x, p.y, 1, 1);
+                this.ctx.fillRect(p.x - 0.5, p.y - 0.5, 1, 1);
                 p.evolve();
             });
         }
@@ -113,7 +143,6 @@ export class Simulator {
 
             let rmv_list = [];
             for (let i = 0; i < chunk.points.length; i++) {
-                CONFIG.ops++;
                 const cur_p = chunk.points[i];
 
                 let chunk_dx = 0, chunk_dy = 0;

@@ -50,7 +50,7 @@ export class CanvasNoice {
             this.render_info.draw = false;
             this.render_info.need_initialize = true;
             
-            this.ctx.clearRect(-8, -8, this.grid.w + 8, this.grid.h + 8);
+            this.ctx.clearRect(0, 0, this.grid.w, this.grid.h);
             console.log('Canvas cleared!');
         });
 
@@ -67,19 +67,6 @@ export class CanvasNoice {
             this.pointer.y = null;
             this.onmouseout && this.onmouseout();
         };
-
-        window.addEventListener('touchmove', (e) => {
-            e.preventDefault();
-            const touch = e.changedTouches[0];
-            this.pointer.x = touch.clientX - this.el.offsetLeft + document.scrollingElement.scrollLeft - 8; // 当存在横向滚动条时，x坐标再往右移动滚动条拉动的距离
-            this.pointer.y = touch.clientY - this.el.offsetTop + document.scrollingElement.scrollTop - 8; // 当存在纵向滚动条时，y坐标再往下移动滚动条拉动的距离
-        });
-        
-        window.addEventListener('touchend', (e) => {
-            e.preventDefault();
-            this.pointer.x = null;
-            this.pointer.y = null;
-        });
     }
 
     newCanvas() {
@@ -99,10 +86,10 @@ export class CanvasNoice {
     }
 
     optimize_chunk_size() {
-        const optimized_size_threshold = CONFIG.max_d * Math.max(CONFIG.chunk_size_optimize_constant, 0.25);
+        const optimized_size_threshold = Math.round(CONFIG.max_d * Math.max(CONFIG.chunk_size_optimize_constant, 0.25));
 
         const calculate_optimization = (dimension) => {
-            console.log('opti', optimized_size_threshold);
+            console.log('Optimized chunk size:', optimized_size_threshold);
 
             const diff = (num_of_chunks) => {
                 return Math.abs(dimension / num_of_chunks - optimized_size_threshold);
