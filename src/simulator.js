@@ -45,7 +45,9 @@ export class Simulator {
         this.draw_buffer.forEach((info, ind) => {
             this.ctx.beginPath();
 
-            this.ctx.lineWidth = (ind + 2) / 10;
+            const alpha = (ind + 2) / 10;
+            this.ctx.lineWidth = alpha;
+            this.ctx.strokeStyle = `rgba(${CONFIG.line_color},${alpha})`;
             info.forEach(pos_info => {
                 this.ctx.moveTo(pos_info[0], pos_info[1]);
                 this.ctx.lineTo(pos_info[2], pos_info[3]);
