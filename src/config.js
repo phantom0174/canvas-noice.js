@@ -1,6 +1,6 @@
 export const CONFIG = {
     max_d: 77.46,
-    point_count: 100,
+    point_count: 500,
     point_color: '180,180,180',
     line_color: '180,180,180',
     chunk_current_capacity: 15,
