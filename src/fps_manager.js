@@ -44,9 +44,7 @@ export class FPSManager {
             } else {
                 this.objectOptimization(Number(cur_fps));
             }
-
-            // this.fps_el.innerHTML = cur_fps;
-            console.log(cur_fps);
+            
             this.startTime = time;
             this.frame = 0;
         }
