@@ -5,6 +5,7 @@ import { requestAnimationFrame } from './utils';
 
 export class FPSManager {
     constructor(grid) {
+        this.el = document.getElementById('fps');
         this.grid = grid;
 
         this.startTime = undefined;
@@ -42,7 +43,8 @@ export class FPSManager {
                     console.log('[c-noice.js] Avr. FPS:', this.avr_fps);
                 }
             } else {
-                this.objectOptimization(Number(cur_fps));
+                // this.objectOptimization(Number(cur_fps));
+                this.el.innerText = cur_fps;
             }
             
             this.startTime = time;

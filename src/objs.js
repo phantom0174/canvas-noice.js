@@ -50,6 +50,7 @@ export class Point {
 
     // force to interact with pointer, no matter the lazy status
     calInterWithPointer(pt) {
+        CNCONFIG.ops++;
         const dx = pt.x - this.x, dy = pt.y - this.y;
         const d = Math.hypot(dx, dy);
 
@@ -82,6 +83,7 @@ export class Point {
     }
 
     calInterWithPoint(p, need_draw) {
+        CNCONFIG.ops++;
         if (!this.lazy.sleep_frame) {
             const dx = p.x - this.x, dy = p.y - this.y;
             const d = Math.hypot(dx, dy);

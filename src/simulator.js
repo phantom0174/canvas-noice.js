@@ -28,7 +28,11 @@ export class Simulator {
             if (ci >= 0 && ci < CNCONFIG.X_CHUNK) tasks.push(this.calVerticalInteraction(ci));
             if (ci - 2 >= 0 && ci - 2 < CNCONFIG.X_CHUNK) tasks.push(this.evolveVerticalChunks(ci - 2));
             if (ci - 4 >= 0 && ci - 4 < CNCONFIG.X_CHUNK) tasks.push(this.updateVerticalChunks(ci - 4));
-            if (tasks.length === 0) break;
+            if (tasks.length === 0) {
+                if (Math.random() < 0.1) console.log(CNCONFIG.ops);
+                CNCONFIG.ops = 0;
+                break;
+            }
 
             await Promise.all(tasks);
         }
@@ -41,8 +45,10 @@ export class Simulator {
 
     drawLinesInBuffer() {
         // 0.2 ~ 1
+        // let sum = 0;
         for (let i = 0; i < 9; i++) {
             const info = this.draw_buffer[i];
+            // sum += info.length;
 
             this.ctx.beginPath();
 
@@ -57,9 +63,8 @@ export class Simulator {
 
             this.draw_buffer[i] = [];
         }
+        // if (Math.random() < 0.1) console.log(sum);
     }
-
-
 
     async calVerticalInteraction(ci) {
         const grid = this.grid;
