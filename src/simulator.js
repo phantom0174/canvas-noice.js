@@ -28,11 +28,7 @@ export class Simulator {
             if (ci >= 0 && ci < CNCONFIG.X_CHUNK) tasks.push(this.calVerticalInteraction(ci));
             if (ci - 2 >= 0 && ci - 2 < CNCONFIG.X_CHUNK) tasks.push(this.evolveVerticalChunks(ci - 2));
             if (ci - 4 >= 0 && ci - 4 < CNCONFIG.X_CHUNK) tasks.push(this.updateVerticalChunks(ci - 4));
-            if (tasks.length === 0) {
-                if (Math.random() < 0.1) console.log(CNCONFIG.ops);
-                CNCONFIG.ops = 0;
-                break;
-            }
+            if (tasks.length === 0) break;
 
             await Promise.all(tasks);
         }
@@ -44,11 +40,8 @@ export class Simulator {
     }
 
     drawLinesInBuffer() {
-        // 0.2 ~ 1
-        // let sum = 0;
         for (let i = 0; i < 9; i++) {
             const info = this.draw_buffer[i];
-            // sum += info.length;
 
             this.ctx.beginPath();
 
@@ -63,7 +56,28 @@ export class Simulator {
 
             this.draw_buffer[i] = [];
         }
-        // if (Math.random() < 0.1) console.log(sum);
+    }
+
+    computeInteractionRange(p, chunk) {
+        const base_x = chunk.x - p.x;
+        let left_x = Math.ceil((CNCONFIG.max_d + base_x) / chunk.w);
+        let right_x = Math.ceil((CNCONFIG.max_d - base_x) / chunk.w - 1);
+
+        const base_y = chunk.y - p.y;
+        let left_y = Math.ceil((CNCONFIG.max_d + base_y) / chunk.h);
+        let right_y = Math.ceil((CNCONFIG.max_d - base_y) / chunk.h);
+
+        if (!CNCONFIG.lossless_computation) {
+            left_x = Math.max(left_x, -1);
+            right_x = Math.min(right_x, 1);
+            left_y = Math.max(left_y, -1);
+            right_y = Math.min(right_y, 1);
+        }
+
+        return {
+            c_dx: [left_x, right_x],
+            c_dy: [left_y, right_y]
+        };
     }
 
     async calVerticalInteraction(ci) {
@@ -72,36 +86,27 @@ export class Simulator {
         for (let cj = 0; cj < CNCONFIG.Y_CHUNK; cj++) {
             const chunk = grid.chunks[ci][cj];
 
-            // temp var
-            const right_x = chunk.x + chunk.w;
-            const right_y = chunk.y + chunk.h;
-
             this.calLocalInteraction(chunk);
 
             // calculate interaction in surrounding chunk
-            chunk.points.forEach(tar_p => {
+            chunk.points.forEach(loc_p => {
                 if (this.pointer.x !== null) {
-                    this.d_info = tar_p.calInterWithPointer(this.pointer);
+                    this.d_info = loc_p.calInterWithPointer(this.pointer);
                     this.loadInfoIntoDrawBuffer();
                 }
 
-                // compute chunks within interaction range
-                let chunk_left_x = 0, chunk_right_x = 0;
-                let chunk_left_y = 0, chunk_right_y = 0;
-                if (tar_p.x - CNCONFIG.max_d < chunk.x) chunk_left_x = -1;
-                if (tar_p.x + CNCONFIG.max_d >= right_x) chunk_right_x = 1;
-                if (tar_p.y - CNCONFIG.max_d < chunk.y) chunk_left_y = -1;
-                if (tar_p.y + CNCONFIG.max_d >= right_y) chunk_right_y = 1;
-
-                for (let i = chunk_left_x; i <= chunk_right_x; i++) {
-                    for (let j = chunk_left_y; j <= chunk_right_y; j++) {
-                        if (i === 0 && j === 0) continue;
-                        if (
-                            ci + i < 0 || ci + i > CNCONFIG.X_CHUNK - 1
-                            || cj + j < 0 || cj + j > CNCONFIG.Y_CHUNK - 1
+                const rangeData = this.computeInteractionRange(loc_p, chunk);
+                for (let i = -rangeData.c_dx[0]; i <= rangeData.c_dx[1]; i++) {
+                    for (let j = -rangeData.c_dy[0]; j <= rangeData.c_dy[1]; j++) {
+                        if (i === 0 && j === 0) continue; // do not compute local chunk
+                        if ( // out of range
+                            ci + i < 0 || ci + i >= CNCONFIG.X_CHUNK
+                            || cj + j < 0 || cj + j >= CNCONFIG.Y_CHUNK
                         ) continue;
 
-                        this.calSurroundingInteraction(grid.chunks[ci + i][cj + j], tar_p, chunk.divergence);
+                        this.calSurroundingInteraction(
+                            grid.chunks[ci + i][cj + j], loc_p, chunk.divergence, cj, cj + j
+                        );
                     }
                 }
             });
@@ -125,8 +130,10 @@ export class Simulator {
         }
     }
 
-    calSurroundingInteraction(tar_chunk, local_p, local_div) {
-        const need_draw = local_div || tar_chunk.divergence === local_div;
+    calSurroundingInteraction(tar_chunk, local_p, local_div, local_cj, tar_cj) {
+        let need_draw = local_div;
+        if (need_draw && local_div === tar_chunk.divergence) need_draw = local_cj >= tar_cj;
+
         tar_chunk.points.forEach(tar_p => {
             this.d_info = local_p.calInterWithPoint(tar_p, need_draw);
             this.loadInfoIntoDrawBuffer();

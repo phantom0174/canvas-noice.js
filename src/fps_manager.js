@@ -43,10 +43,10 @@ export class FPSManager {
                     console.log('[c-noice.js] Avr. FPS:', this.avr_fps);
                 }
             } else {
-                // this.objectOptimization(Number(cur_fps));
-                this.el.innerText = cur_fps;
+                this.objectOptimization(Number(cur_fps));
+                if (this.el) this.el.innerText = cur_fps;
             }
-            
+
             this.startTime = time;
             this.frame = 0;
         }
