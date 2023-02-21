@@ -22,7 +22,7 @@ Please see `index.html` and `main.js`.
 ```markdown
 - basic property
 max_d: the maximal line distance between particles. (in pixels)
-point_count: number of points to render.
+point_count: number of points to render. (can handle up to ~1000 points stably)
 point_color: color of points. (in RGB)
 line_color: color of lines. (in RGB)
 zIndex: z-index of the canvas.
