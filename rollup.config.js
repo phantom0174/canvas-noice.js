@@ -4,10 +4,11 @@ import { terser } from "rollup-plugin-terser";
 
 
 export default {
-    input: './src/main.js',
+    input: './src/index.js',
     output: {
-        file: 'bundle.js',
-        format: 'esm'
+        file: 'canvas-noice.min.js',
+        name: 'CanvasNoice',
+        format: 'umd'
     },
     plugins: [
         resolve(),

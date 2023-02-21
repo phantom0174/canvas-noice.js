@@ -1,17 +1,14 @@
 {
-  "name": "canvas",
-  "version": "1.0.0",
+  "name": "canvas-noice.js",
+  "version": "1.1.0",
   "description": "",
   "main": "main.js",
   "type": "module",
   "scripts": {
     "r": "rollup --config"
   },
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "size-sensor": "^1.0.1"
-  },
+  "author": "phantom0174",
+  "license": "MIT",
   "devDependencies": {
     "@rollup/plugin-commonjs": "^24.0.1",
     "@rollup/plugin-node-resolve": "^15.0.1",

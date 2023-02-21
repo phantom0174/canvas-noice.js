@@ -20,4 +20,4 @@ export const cancelAnimationFrame = window.cancelAnimationFrame ||
     window.clearTimeout;
 
 export const canvasStyle = config =>
-    `display:block;position:absolute;top:0;left:0;height:100%;width:100%;overflow:hidden;pointer-events:none;z-index:${config.zIndex};opacity:${config.opacity}`;
+    `position:fixed;top:0;left:0;z-index:${config.zIndex};opacity:${config.opacity}`;

@@ -1,12 +1,12 @@
 import { Point } from './objs';
-import { CONFIG } from './config';
+// const { CNCONFIG } = require('./config');
+import { requestAnimationFrame } from './utils';
 
 
 export class FPSManager {
     constructor(grid) {
         this.grid = grid;
 
-        this.fps_el = document.getElementById("fps");
         this.startTime = undefined;
         this.frame = 0;
 
@@ -14,7 +14,7 @@ export class FPSManager {
         this.avr_counter = 3;
 
         this.stable_counter = 0;
-        this.batch = Math.round(CONFIG.X_CHUNK * CONFIG.Y_CHUNK / 30);
+        this.batch = Math.round(CNCONFIG.X_CHUNK * CNCONFIG.Y_CHUNK / 30);
     }
 
     async initialize() {
@@ -39,28 +39,29 @@ export class FPSManager {
 
                 if (!this.avr_counter) {
                     this.avr_fps = Math.round(this.avr_fps / 3);
-                    console.log('Avr FPS:', this.avr_fps);
+                    console.log('[c-noice.js] Avr. FPS:', this.avr_fps);
                 }
             } else {
-                this.object_optimization(Number(cur_fps));
+                this.objectOptimization(Number(cur_fps));
             }
-            
-            this.fps_el.innerHTML = cur_fps;
+
+            // this.fps_el.innerHTML = cur_fps;
+            console.log(cur_fps);
             this.startTime = time;
             this.frame = 0;
         }
-        window.requestAnimationFrame(() => { this.tick(); });
+        requestAnimationFrame(() => { this.tick(); });
     }
 
-    object_optimization(cur_fps) {
+    objectOptimization(cur_fps) {
         const performance = cur_fps / this.avr_fps;
         if (performance > 0.9) {
-            this.grid.increase_capacity(Math.round((cur_fps - this.avr_fps * 0.9) / 6));
+            this.grid.incCapacity(Math.round((cur_fps - this.avr_fps * 0.9) / 6));
 
             const refill_count = Math.round(this.grid.wait_refill_num / (10 - Math.min(this.stable_counter / 5, 8)));
             for (let i = 0; i < refill_count; i++) {
                 setTimeout(() => {
-                    this.grid.insert_point(new Point(this.grid.w, this.grid.h));
+                    this.grid.insertPoint(new Point(this.grid.w, this.grid.h));
                 }, Math.random() * 2000);
             }
             this.grid.wait_refill_num -= refill_count;
@@ -70,16 +71,16 @@ export class FPSManager {
             this.stable_counter = 0;
 
             if (performance <= 0.7) {
-                this.grid.decrease_capacity(3);
-                this.grid.random_remove_points(this.batch * 3);
+                this.grid.decCapacity(3);
+                this.grid.randomRemovePoints(this.batch * 3);
                 this.grid.wait_refill_num = 0;
             } else if (performance <= 0.8) {
-                this.grid.decrease_capacity(2);
-                this.grid.random_remove_points(this.batch * 2);
+                this.grid.decCapacity(2);
+                this.grid.randomRemovePoints(this.batch * 2);
                 this.grid.wait_refill_num = Math.floor(this.grid.wait_refill_num / 3);
             } else if (performance <= 0.9) {
-                this.grid.decrease_capacity(1);
-                this.grid.random_remove_points(this.batch);
+                this.grid.decCapacity(1);
+                this.grid.randomRemovePoints(this.batch);
             }
         }
     }

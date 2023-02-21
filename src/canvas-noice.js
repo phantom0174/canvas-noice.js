@@ -1,16 +1,15 @@
-import { bind, clear } from 'size-sensor';
-import { requestAnimationFrame, cancelAnimationFrame, canvasStyle } from './utils';
-import { CONFIG } from './config';
+import { cancelAnimationFrame, canvasStyle } from './utils';
+// const { CNCONFIG } = require('./config');
 import { Simulator } from './simulator';
 import { FPSManager } from './fps_manager';
 import { Grid } from './objs';
 
 
 export class CanvasNoice {
-    constructor(el) {
-        this.el = el;
-
-        this.canvas = this.newCanvas();
+    constructor() {
+        // this.el = el;
+        this.canvas = undefined;
+        this.initializeCanvas();
         this.ctx = this.canvas.getContext('2d');
 
         this.grid = undefined; // chunk manager
@@ -22,42 +21,43 @@ export class CanvasNoice {
             y: null,
             is_pointer: true
         };
-        this.bindEvent();
+        this.registerListener();
 
         this.render_info = {
             draw: true,
             need_initialize: true,
-            delay_after: 0.5,
+            delay_after: 0.2,
             last_changed_time: 0,
         };
 
         this.pendingRender();
-        this.ignore_initial_size_changes = true;
     }
 
-    bindEvent() {
-        bind(this.el, () => {
-            if (this.ignore_initial_size_changes) {
-                this.ignore_initial_size_changes = false;
-                return;
-            }
+    updateCanvasSize() {
+        this.canvas.width = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth;
+        this.canvas.height = window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight;
+    }
+
+    resetRenderInfo() {
+        this.render_info.last_changed_time = Date.now();
+        this.render_info.draw = false;
+        this.render_info.need_initialize = true;
+    }
+
+    registerListener() {
+        window.onresize = () => {
             cancelAnimationFrame(this.tid);
 
-            this.canvas.width = this.el.clientWidth;
-            this.canvas.height = this.el.clientHeight;
-
-            this.render_info.last_changed_time = Date.now();
-            this.render_info.draw = false;
-            this.render_info.need_initialize = true;
-            
-            this.ctx.clearRect(0, 0, this.grid.w, this.grid.h);
-            console.log('Canvas cleared!');
-        });
+            this.updateCanvasSize();
+            this.resetRenderInfo();
+        };
 
         this.onmousemove = window.onmousemove;
         window.onmousemove = e => {
-            this.pointer.x = e.clientX - this.el.offsetLeft + document.scrollingElement.scrollLeft - 8; // 当存在横向滚动条时，x坐标再往右移动滚动条拉动的距离
-            this.pointer.y = e.clientY - this.el.offsetTop + document.scrollingElement.scrollTop - 8; // 当存在纵向滚动条时，y坐标再往下移动滚动条拉动的距离
+            this.pointer.x = e.clientX;
+            this.pointer.y = e.clientY;
+            // this.pointer.x = e.clientX - this.el.offsetLeft + document.scrollingElement.scrollLeft; // 当存在横向滚动条时，x坐标再往右移动滚动条拉动的距离
+            // this.pointer.y = e.clientY - this.el.offsetTop + document.scrollingElement.scrollTop; // 当存在纵向滚动条时，y坐标再往下移动滚动条拉动的距离
             this.onmousemove && this.onmousemove(e);
         };
 
@@ -69,28 +69,22 @@ export class CanvasNoice {
         };
     }
 
-    newCanvas() {
-        if (getComputedStyle(this.el).position === 'static') {
-            this.el.style.position = 'relative'
-        }
-        const canvas = document.createElement('canvas');
-        canvas.style.cssText = canvasStyle(CONFIG);
+    initializeCanvas() {
+        // if (getComputedStyle(this.el).position === 'static') {
+        //     this.el.style.position = 'relative';
+        // }
+        this.canvas = document.createElement('canvas');
+        this.canvas.style.cssText = canvasStyle(CNCONFIG);
+        this.updateCanvasSize();
 
-        canvas.width = this.el.clientWidth;
-        canvas.height = this.el.clientHeight;
-
-        // dom
-        this.el.appendChild(canvas);
-        console.log(canvas);
-        return canvas;
+        document.body.appendChild(this.canvas);
     }
 
-    optimize_chunk_size() {
-        const optimized_size_threshold = Math.round(CONFIG.max_d * Math.max(CONFIG.chunk_size_optimize_constant, 0.25));
+    optimizeChunkSize() {
+        const optimized_size_threshold = Math.round(CNCONFIG.max_d * Math.max(CNCONFIG.chunk_size_optimize_constant, 0.25));
+        console.log('[c-noice.js] Optimized chunk size:', optimized_size_threshold);
 
-        const calculate_optimization = (dimension) => {
-            console.log('Optimized chunk size:', optimized_size_threshold);
-
+        const calOpti = (dimension) => {
             const diff = (num_of_chunks) => {
                 return Math.abs(dimension / num_of_chunks - optimized_size_threshold);
             };
@@ -100,28 +94,27 @@ export class CanvasNoice {
             else return Math.ceil(test_num);
         };
 
-        console.log(this.canvas.width, this.canvas.height);
+        CNCONFIG.X_CHUNK = calOpti(this.canvas.width);
+        CNCONFIG.Y_CHUNK = calOpti(this.canvas.height);
 
-        CONFIG.X_CHUNK = calculate_optimization(this.canvas.width);
-        CONFIG.Y_CHUNK = calculate_optimization(this.canvas.height);
-
-        console.log('x chunk num:', CONFIG.X_CHUNK);
-        console.log('y chunk num:', CONFIG.Y_CHUNK);
+        console.log(`[c-noice.js] Chunk Number: ${CNCONFIG.X_CHUNK}*${CNCONFIG.Y_CHUNK}`);
     }
 
     async pendingRender() {
         if (this.render_info.draw) {
             if (this.render_info.need_initialize) {
-                this.optimize_chunk_size();
+                this.optimizeChunkSize();
 
                 this.grid = new Grid(this.canvas.width, this.canvas.height);
                 this.fps_manager = new FPSManager(this.grid);
                 await this.fps_manager.initialize();
+                // this.fps_manager = null;
 
-                this.simulator = new Simulator(this.ctx, this.grid, this.fps_manager, this.pointer);
+                this.simulator = new Simulator(this.ctx, this.grid, this.pointer);
 
                 this.render_info.need_initialize = false;
-                console.log('Canvas Initialized!');
+                console.log('[c-noice.js] Canvas Initialized!');
+                console.log(`[c-noice.js] Canvas Size: ${this.canvas.width}*${this.canvas.height}`);
             }
             this.requestFrame();
         } else if (Date.now() - this.render_info.last_changed_time > 1000) {
@@ -137,25 +130,19 @@ export class CanvasNoice {
     requestFrame() {
         this.simulator.draw();
 
-        if (this.fps_manager.avr_fps <= 60) {
-            this.tid = requestAnimationFrame(() => { this.pendingRender(); });
-        } else {
-            this.tid = setTimeout(() => { this.pendingRender(); }, 1000 / 60);
-        }
+        // if (this.fps_manager.avr_fps <= 60) {
+        //     this.tid = requestAnimationFrame(() => { this.pendingRender(); }); // this thing is crashing the browser!
+        // } else {
+        this.tid = setTimeout(() => { this.pendingRender(); }, 1000 / 60);
+        // }
     }
 
     destroy() {
-        // 清除事件
-        clear(this.el);
-
-        // mouse 事件清除, set to default
+        // set mouse event to default
         window.onmousemove = this.onmousemove;
         window.onmouseout = this.onmouseout;
 
-        // 删除轮询
         cancelAnimationFrame(this.tid);
-
-        // 删除 dom
-        this.canvas.parentNode.removeChild(this.canvas);
+        document.body.removeChild(this.canvas);
     }
 }

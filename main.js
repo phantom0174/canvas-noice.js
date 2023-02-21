@@ -1,4 +1,4 @@
-export const CONFIG = {
+const CNCONFIG = {
     max_d: 100,
     point_count: 500,
     point_color: '180,180,180',
@@ -19,3 +19,5 @@ export const CONFIG = {
     canvas_opacity: 1,
     pointer_interaction: 1, // 0: points stop moving when touched by cursor; 1: same effect as canvas-nest.js
 };
+
+new CanvasNoice();
