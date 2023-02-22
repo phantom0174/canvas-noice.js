@@ -133,7 +133,7 @@ export class CanvasNoice {
         // if (this.fps_manager.avr_fps <= 60) {
         //     this.tid = requestAnimationFrame(() => { this.pendingRender(); }); // this thing is crashing the browser!
         // } else {
-        this.tid = setTimeout(() => { this.pendingRender(); }, 1000 / 60);
+        this.tid = setTimeout(() => { this.pendingRender(); }, 1000 / CNCONFIG.render_rate); // prevent overloading
         // }
     }
 

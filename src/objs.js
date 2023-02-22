@@ -52,7 +52,7 @@ export class Point {
     calInterWithPointer(pt) {
         const dx = pt.x - this.x, dy = pt.y - this.y;
         const d = Math.hypot(dx, dy);
-
+        
         if (d > CNCONFIG.max_d || d < 1) return;
         this.pointer_inter = true;
 
@@ -85,7 +85,7 @@ export class Point {
         if (!this.lazy.sleep_frame) {
             const dx = p.x - this.x, dy = p.y - this.y;
             const d = Math.hypot(dx, dy);
-
+            
             if (d > CNCONFIG.max_d || d < 1) return;
 
             this.lazy.touched++;
@@ -114,8 +114,8 @@ class Chunk {
     constructor(x, y, w, h, div) {
         this.x = x; this.y = y;
         this.w = w, this.h = h;
-        this.divergence = div;
         this.points = [];
+        this.traversed = false;
     }
 }
 
@@ -144,7 +144,7 @@ export class Grid {
                 this.chunks[i][j] = new Chunk(
                     this.chunk_w * i, this.chunk_h * j,
                     this.chunk_w, this.chunk_h,
-                    (i + j) % 2
+                    // (i + j) % 2
                 );
             }
         }

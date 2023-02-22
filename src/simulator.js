@@ -18,7 +18,6 @@ export class Simulator {
         // index: 10 * opacity(0.2 ~ 1) - 2
         // inverse: (index + 2) / 10
         this.draw_buffer = new Array(9).fill(null).map(() => []);
-        this.d_info; // draw info variable buffer
     }
 
     async traverse() {
@@ -28,39 +27,48 @@ export class Simulator {
             if (ci >= 0 && ci < CNCONFIG.X_CHUNK) tasks.push(this.calVerticalInteraction(ci));
             if (ci - 2 >= 0 && ci - 2 < CNCONFIG.X_CHUNK) tasks.push(this.evolveVerticalChunks(ci - 2));
             if (ci - 4 >= 0 && ci - 4 < CNCONFIG.X_CHUNK) tasks.push(this.updateVerticalChunks(ci - 4));
-            if (tasks.length === 0) break;
+            if (tasks.length === 0) {
+                this.drawLinesInBuffer();
+                break;
+            }
 
             await Promise.all(tasks);
         }
     }
 
-    loadInfoIntoDrawBuffer() {
-        if (!this.d_info) return;
-        this.draw_buffer[10 * this.d_info.a - 2].push(this.d_info.pos_info);
+    loadInfoIntoDrawBuffer(d_info) {
+        if (!d_info) return;
+        this.draw_buffer[10 * d_info.a - 2].push(d_info.pos_info);
+    }
+
+    drawLinesInBufferSlot(slot_num) {
+        const info = this.draw_buffer[slot_num];
+
+        this.ctx.beginPath();
+
+        const alpha = (slot_num + 2) / 10;
+        this.ctx.lineWidth = alpha;
+        this.ctx.strokeStyle = `rgba(${CNCONFIG.line_color},${alpha})`;
+
+        for (let i = 0, I = info.length; i < I; i++) {
+            const pos_info = info[i];
+
+            this.ctx.moveTo(pos_info[0], pos_info[1]);
+            this.ctx.lineTo(pos_info[2], pos_info[3]);
+        }
+        this.ctx.stroke();
+
+        this.draw_buffer[slot_num] = [];
     }
 
     drawLinesInBuffer() {
-        for (let i = 0; i < 9; i++) {
-            const info = this.draw_buffer[i];
-
-            this.ctx.beginPath();
-
-            const alpha = (i + 2) / 10;
-            this.ctx.lineWidth = alpha;
-            this.ctx.strokeStyle = `rgba(${CNCONFIG.line_color},${alpha})`;
-            info.forEach(pos_info => {
-                this.ctx.moveTo(pos_info[0], pos_info[1]);
-                this.ctx.lineTo(pos_info[2], pos_info[3]);
-            });
-            this.ctx.stroke();
-
-            this.draw_buffer[i] = [];
-        }
+        this.buffer_cur_size = 0;
+        for (let i = 0; i < 9; i++) this.drawLinesInBufferSlot(i);
     }
 
     computeInteractionRange(p, chunk) {
         const base_x = chunk.x - p.x;
-        let left_x = Math.ceil((CNCONFIG.max_d + base_x) / chunk.w);
+        // chunks on the left hand side have already been traversed
         let right_x = Math.ceil((CNCONFIG.max_d - base_x) / chunk.w - 1);
 
         const base_y = chunk.y - p.y;
@@ -68,51 +76,47 @@ export class Simulator {
         let right_y = Math.ceil((CNCONFIG.max_d - base_y) / chunk.h);
 
         if (!CNCONFIG.lossless_computation) {
-            left_x = Math.max(left_x, -1);
             right_x = Math.min(right_x, 1);
             left_y = Math.max(left_y, -1);
             right_y = Math.min(right_y, 1);
         }
 
         return {
-            c_dx: [left_x, right_x],
+            c_dx: [right_x],
             c_dy: [left_y, right_y]
         };
     }
 
     async calVerticalInteraction(ci) {
-        const grid = this.grid;
-
         for (let cj = 0; cj < CNCONFIG.Y_CHUNK; cj++) {
-            const chunk = grid.chunks[ci][cj];
+            const chunk = this.grid.chunks[ci][cj];
 
             this.calLocalInteraction(chunk);
 
             // calculate interaction in surrounding chunk
             chunk.points.forEach(loc_p => {
-                if (this.pointer.x !== null) {
-                    this.d_info = loc_p.calInterWithPointer(this.pointer);
-                    this.loadInfoIntoDrawBuffer();
-                }
+                if (this.pointer.x !== null) this.loadInfoIntoDrawBuffer(
+                    loc_p.calInterWithPointer(this.pointer)
+                );
 
                 const rangeData = this.computeInteractionRange(loc_p, chunk);
-                for (let i = -rangeData.c_dx[0]; i <= rangeData.c_dx[1]; i++) {
+                for (let i = 0; i <= rangeData.c_dx[0]; i++) {
                     for (let j = -rangeData.c_dy[0]; j <= rangeData.c_dy[1]; j++) {
                         if (i === 0 && j === 0) continue; // do not compute local chunk
-                        if ( // out of range
-                            ci + i < 0 || ci + i >= CNCONFIG.X_CHUNK
+                        if (
+                            ci + i >= CNCONFIG.X_CHUNK
                             || cj + j < 0 || cj + j >= CNCONFIG.Y_CHUNK
-                        ) continue;
+                        ) continue; // out of range
 
-                        this.calSurroundingInteraction(
-                            grid.chunks[ci + i][cj + j], loc_p, chunk.divergence, cj, cj + j
-                        );
+                        const tar_chunk = this.grid.chunks[ci + i][cj + j];
+                        if (tar_chunk.traversed) continue;
+
+                        this.calSurroundingInteraction(tar_chunk, loc_p);
                     }
                 }
             });
+            chunk.traversed = true;
         }
-
-        this.drawLinesInBuffer();
     }
 
     calLocalInteraction(chunk) {
@@ -122,27 +126,27 @@ export class Simulator {
             for (let j = i + 1; j < chunk.points.length; j++) {
                 const tar_p = chunk.points[j];
 
-                this.d_info = p.calInterWithPoint(tar_p, true);
-                this.loadInfoIntoDrawBuffer();
-
+                this.loadInfoIntoDrawBuffer(
+                    p.calInterWithPoint(tar_p, true)
+                );
                 tar_p.calInterWithPoint(p, false);
             }
         }
     }
 
-    calSurroundingInteraction(tar_chunk, local_p, local_div, local_cj, tar_cj) {
-        let need_draw = local_div;
-        if (need_draw && local_div === tar_chunk.divergence) need_draw = local_cj >= tar_cj;
-
+    calSurroundingInteraction(tar_chunk, local_p) {
         tar_chunk.points.forEach(tar_p => {
-            this.d_info = local_p.calInterWithPoint(tar_p, need_draw);
-            this.loadInfoIntoDrawBuffer();
+            this.loadInfoIntoDrawBuffer(
+                local_p.calInterWithPoint(tar_p, true)
+            );
+            tar_p.calInterWithPoint(local_p, false);
         });
     }
 
     async evolveVerticalChunks(ci) {
         for (let cj = 0; cj < CNCONFIG.Y_CHUNK; cj++) {
-            this.grid.chunks[ci][cj].points.forEach(p => {
+            const chunk = this.grid.chunks[ci][cj];
+            chunk.points.forEach(p => {
                 this.ctx.fillRect(p.x - 0.5, p.y - 0.5, 1, 1);
                 p.evolve();
             });
@@ -153,6 +157,7 @@ export class Simulator {
     async updateVerticalChunks(ci) {
         for (let cj = 0; cj < CNCONFIG.Y_CHUNK; cj++) {
             const chunk = this.grid.chunks[ci][cj];
+            chunk.traversed = false; // reset status for next frame
 
             // for temp
             const right_x = chunk.x + chunk.w;
@@ -174,16 +179,19 @@ export class Simulator {
                 const new_chunk_x = ci + chunk_dx;
                 const new_chunk_y = cj + chunk_dy;
 
-                if (new_chunk_x < 0 || new_chunk_x > CNCONFIG.X_CHUNK - 1) {
+                // boundary check
+                if (new_chunk_x < 0) {
+                    cur_p.x = 0.1;
                     cur_p.vx *= -1;
-                    cur_p.x += cur_p.vx;
-                    if (cur_p.x <= 0) cur_p.x = 0.1;
-                    else if (cur_p.x > this.grid.w) cur_p.x = this.grid.w - 0.1;
-                } else if (new_chunk_y < 0 || new_chunk_y > CNCONFIG.Y_CHUNK - 1) {
+                } else if (new_chunk_x >= CNCONFIG.X_CHUNK) {
+                    cur_p.x = this.grid.w - 0.1;
+                    cur_p.vx *= -1;
+                } else if (new_chunk_y < 0) {
+                    cur_p.y = 0.1;
                     cur_p.vy *= -1;
-                    cur_p.y += cur_p.vy;
-                    if (cur_p.y <= 0) cur_p.y = 0.1;
-                    else if (cur_p.y > this.grid.h) cur_p.y = this.grid.h - 0.1;
+                } else if (new_chunk_y >= CNCONFIG.Y_CHUNK) {
+                    cur_p.y = this.grid.h - 0.1;
+                    cur_p.vy *= -1;
                 } else { // move to new chunk, or to random location if full
                     rmv_list.push(i);
 
@@ -193,6 +201,7 @@ export class Simulator {
                 }
             }
 
+            // remove in O(N) time
             let cur_rmv_ind = 0;
             chunk.points = chunk.points.filter((v, ind) => {
                 if (cur_rmv_ind !== rmv_list.length && ind === rmv_list[cur_rmv_ind]) {
